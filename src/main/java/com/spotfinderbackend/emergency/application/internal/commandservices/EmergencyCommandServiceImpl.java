@@ -1,89 +1,57 @@
 package com.spotfinderbackend.emergency.application.internal.commandservices;
 
-import com.spotfinderbackend.accesscontrol.domain.model.commands.OpenAllBarriersCommand;
-import com.spotfinderbackend.accesscontrol.domain.services.AccessControlCommandService;
 import com.spotfinderbackend.emergency.domain.model.aggregates.EmergencyAlert;
-import com.spotfinderbackend.emergency.domain.model.commands.*;
-import com.spotfinderbackend.emergency.domain.model.exceptions.EmergencyNotFoundException;
-import com.spotfinderbackend.emergency.domain.model.exceptions.NoActiveEmergencyException;
+import com.spotfinderbackend.emergency.domain.model.commands.ActivateEvacuationCommand;
+import com.spotfinderbackend.emergency.domain.model.commands.ResolveEmergencyCommand;
+import com.spotfinderbackend.emergency.domain.model.commands.TriggerEmergencyAlertCommand;
 import com.spotfinderbackend.emergency.domain.model.valueobjects.EmergencyStatus;
 import com.spotfinderbackend.emergency.domain.services.EmergencyCommandService;
-import com.spotfinderbackend.emergency.infrastructure.persistence.jpa.repositories.EmergencyRepository;
-import com.spotfinderbackend.notifications.domain.model.commands.CreateNotificationCommand;
-import com.spotfinderbackend.notifications.domain.model.valueobjects.NotificationType;
-import com.spotfinderbackend.notifications.domain.services.NotificationCommandService;
-import com.spotfinderbackend.parkingmonitoring.domain.model.commands.SetEvacuationModeCommand;
-import com.spotfinderbackend.parkingmonitoring.domain.services.ParkingSlotCommandService;
+import com.spotfinderbackend.emergency.domain.services.EmergencyThresholdService;
+import com.spotfinderbackend.emergency.infrastructure.persistence.jpa.repositories.EmergencyAlertRepository;
+import com.spotfinderbackend.shared.domain.model.exceptions.BusinessRuleException;
+import com.spotfinderbackend.shared.domain.model.exceptions.NotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
 
 @Service
+@Transactional
 public class EmergencyCommandServiceImpl implements EmergencyCommandService {
 
-    private final EmergencyRepository repository;
+    private final EmergencyAlertRepository repository;
+    private final EmergencyThresholdService thresholdService;
 
-    private final AccessControlCommandService accessControlCommandService;
-    private final ParkingSlotCommandService parkingSlotCommandService;
-    private final NotificationCommandService notificationCommandService;
-
-    public EmergencyCommandServiceImpl(
-            EmergencyRepository repository,
-            AccessControlCommandService accessControlCommandService,
-            ParkingSlotCommandService parkingSlotCommandService,
-            NotificationCommandService notificationCommandService
-    ) {
+    public EmergencyCommandServiceImpl(EmergencyAlertRepository repository,
+                                       EmergencyThresholdService thresholdService) {
         this.repository = repository;
-        this.accessControlCommandService = accessControlCommandService;
-        this.parkingSlotCommandService = parkingSlotCommandService;
-        this.notificationCommandService = notificationCommandService;
+        this.thresholdService = thresholdService;
     }
 
-    // TS54 → CREATE ALERT
     @Override
-    public Long handle(CreateEmergencyAlertCommand command) {
-
-        var alert = new EmergencyAlert(
-                command.description(),
-                command.severity()
-        );
-
-        repository.save(alert);
-
-        return alert.getId();
+    public Optional<EmergencyAlert> handle(TriggerEmergencyAlertCommand command) {
+        if (!thresholdService.isDangerousCondition(command.gasLevel(), command.type())) {
+            return Optional.empty();
+        }
+        var alert = new EmergencyAlert(command);
+        return Optional.of(repository.save(alert));
     }
 
-    // TS56 → ACTIVATE EVACUATION
-    @Override
-    public void handle(ActivateEvacuationCommand command) {
-
-        var activeAlert = repository.findByStatus(EmergencyStatus.ACTIVE)
-                .orElseThrow(NoActiveEmergencyException::new);
-
-        // 1. ABRIR TODAS LAS BARRERAS
-        accessControlCommandService.handle(new OpenAllBarriersCommand());
-
-        // 2. ACTIVAR MODO EVACUACIÓN EN PARKING
-        parkingSlotCommandService.handle(new SetEvacuationModeCommand());
-
-        // 3. NOTIFICACIÓN MASIVA (SIMPLIFICADO)
-        notificationCommandService.handle(
-                new CreateNotificationCommand(
-                        0L, //  broadcast (luego mejora)
-                        "EMERGENCY ALERT",
-                        NotificationType.EMERGENCY_ALERT,
-                        "Evacuation protocol activated"
-                )
-        );
-    }
-
-    // TS57 → RESOLVE ALERT
     @Override
     public void handle(ResolveEmergencyCommand command) {
-
-        var alert = repository.findById(command.alertId())
-                .orElseThrow(() -> new EmergencyNotFoundException(command.alertId()));
-
-        alert.resolve();
-
+        var alert = repository.findById(command.emergencyId())
+                .orElseThrow(() -> new NotFoundException("Emergency not found: " + command.emergencyId()));
+        if (alert.isResolved())
+            throw new BusinessRuleException("Emergency already resolved");
+        alert.resolve(command.adminUserId());
         repository.save(alert);
+    }
+
+    @Override
+    public void handle(ActivateEvacuationCommand command) {
+        if (!repository.existsByStatus(EmergencyStatus.ACTIVE))
+            throw new BusinessRuleException("No active emergency to evacuate");
+        // Re-publishing the trigger event is overkill; the active emergency's handler
+        // already executed the protocol when triggered.
     }
 }

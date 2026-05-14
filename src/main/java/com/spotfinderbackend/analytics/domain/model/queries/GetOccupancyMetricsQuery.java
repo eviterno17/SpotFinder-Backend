@@ -1,8 +1,5 @@
 package com.spotfinderbackend.analytics.domain.model.queries;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
-public record GetOccupancyMetricsQuery(
-        LocalDateTime start,
-        LocalDateTime end
-) {}
+public record GetOccupancyMetricsQuery(LocalDate startDate, LocalDate endDate, Long facilityId) { }

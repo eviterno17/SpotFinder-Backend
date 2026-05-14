@@ -1,14 +1,15 @@
 package com.spotfinderbackend.parkingmonitoring.domain.services;
 
-import com.spotfinderbackend.parkingmonitoring.domain.model.commands.CreateParkingSlotCommand;
-import com.spotfinderbackend.parkingmonitoring.domain.model.commands.SetEvacuationModeCommand;
-import com.spotfinderbackend.parkingmonitoring.domain.model.commands.UpdateParkingSlotStatusCommand;
+import com.spotfinderbackend.parkingmonitoring.domain.model.aggregates.ParkingSlot;
+import com.spotfinderbackend.parkingmonitoring.domain.model.commands.*;
+
+import java.util.Optional;
 
 public interface ParkingSlotCommandService {
-
-    Long handle(CreateParkingSlotCommand command);
-
-    void handle(UpdateParkingSlotStatusCommand command);
-
-    void handle(SetEvacuationModeCommand command);
+    Optional<ParkingSlot> handle(RegisterParkingSlotCommand command);
+    void handle(UpdateSlotStatusCommand command);
+    void handle(ProcessSensorReadingCommand command);
+    void handle(SetAllLedsToEvacuationModeCommand command);
+    void handle(RestoreLedsToNormalModeCommand command);
+    void handle(ReleaseSlotCommand command);
 }

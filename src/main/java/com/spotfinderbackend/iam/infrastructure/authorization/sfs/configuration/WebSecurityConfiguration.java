@@ -86,6 +86,14 @@ public class WebSecurityConfiguration {
                                 "/swagger-resources/**",
                                 "/webjars/**"
                         ).permitAll()
+                        // Edge-server / IoT endpoints (no JWT). Should be protected with a shared
+                        // secret in production; left open here so the ESP32 firmware can POST readings.
+                        .requestMatchers(
+                                "/api/v1/sensor-readings",
+                                "/api/v1/emergency/alerts",
+                                "/api/v1/access/alpr",
+                                "/ws/**"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
                 // 🧱 Filtro JWT antes del UsernamePasswordAuthenticationFilter

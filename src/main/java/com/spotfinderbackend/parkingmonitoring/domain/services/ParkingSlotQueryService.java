@@ -4,12 +4,14 @@ import com.spotfinderbackend.parkingmonitoring.domain.model.aggregates.ParkingSl
 import com.spotfinderbackend.parkingmonitoring.domain.model.queries.*;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface ParkingSlotQueryService {
+    List<ParkingSlot> handle(GetAllSlotsQuery query);
+    List<ParkingSlot> handle(GetAvailableSlotsQuery query);
+    Optional<ParkingSlot> handle(GetSlotByIdQuery query);
+    List<ParkingSlot> handle(GetSlotRecommendationsQuery query);
+    OccupancySummary handle(GetOccupancySummaryQuery query);
 
-    List<ParkingSlot> handle(GetAllParkingSlotsQuery query);
-
-    List<ParkingSlot> handle(GetAvailableParkingSlotsQuery query);
-
-    List<ParkingSlot> handle(GetRecommendedParkingSlotsQuery query);
+    record OccupancySummary(long total, long available, long occupied, double occupancyRate) { }
 }

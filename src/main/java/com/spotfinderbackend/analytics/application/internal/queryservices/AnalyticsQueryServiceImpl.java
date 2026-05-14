@@ -1,80 +1,127 @@
 package com.spotfinderbackend.analytics.application.internal.queryservices;
 
+import com.spotfinderbackend.analytics.application.internal.outboundservices.acl.ExternalParkingDataService;
+import com.spotfinderbackend.analytics.application.internal.outboundservices.acl.ExternalPaymentDataService;
+import com.spotfinderbackend.analytics.application.internal.outboundservices.acl.ExternalSessionDataService;
 import com.spotfinderbackend.analytics.domain.model.queries.*;
-import com.spotfinderbackend.analytics.domain.model.readmodels.*;
+import com.spotfinderbackend.analytics.domain.model.valueobjects.*;
 import com.spotfinderbackend.analytics.domain.services.AnalyticsQueryService;
-import com.spotfinderbackend.parkingmonitoring.domain.model.valueobjects.ParkingSlotStatus;
-import com.spotfinderbackend.parkingmonitoring.infrastructure.persistence.jpa.repositories.ParkingSlotRepository;
-import com.spotfinderbackend.payments.infrastructure.persistence.jpa.repositories.PaymentRepository;
+import com.spotfinderbackend.analytics.domain.services.OccupancyAnalyticsService;
+import com.spotfinderbackend.analytics.domain.services.RevenueAnalyticsService;
+import com.spotfinderbackend.shared.domain.model.valueobjects.Money;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class AnalyticsQueryServiceImpl implements AnalyticsQueryService {
 
-    private final ParkingSlotRepository slotRepository;
-    private final PaymentRepository paymentRepository;
+    private final OccupancyAnalyticsService occupancyAnalyticsService;
+    private final RevenueAnalyticsService revenueAnalyticsService;
+    private final ExternalParkingDataService externalParkingDataService;
+    private final ExternalPaymentDataService externalPaymentDataService;
+    private final ExternalSessionDataService externalSessionDataService;
 
-    public AnalyticsQueryServiceImpl(
-            ParkingSlotRepository slotRepository,
-            PaymentRepository paymentRepository
-    ) {
-        this.slotRepository = slotRepository;
-        this.paymentRepository = paymentRepository;
+    public AnalyticsQueryServiceImpl(OccupancyAnalyticsService occupancyAnalyticsService,
+                                     RevenueAnalyticsService revenueAnalyticsService,
+                                     ExternalParkingDataService externalParkingDataService,
+                                     ExternalPaymentDataService externalPaymentDataService,
+                                     ExternalSessionDataService externalSessionDataService) {
+        this.occupancyAnalyticsService = occupancyAnalyticsService;
+        this.revenueAnalyticsService = revenueAnalyticsService;
+        this.externalParkingDataService = externalParkingDataService;
+        this.externalPaymentDataService = externalPaymentDataService;
+        this.externalSessionDataService = externalSessionDataService;
     }
 
-    // TS51 → OCCUPANCY
     @Override
     public OccupancyMetrics handle(GetOccupancyMetricsQuery query) {
-
-        var slots = slotRepository.findAll();
-
-        var occupied = slots.stream()
-                .filter(s -> s.getStatus() == ParkingSlotStatus.OCCUPIED)
-                .count();
-
-        int total = slots.size();
-
-        double rate = total == 0 ? 0 : (double) occupied / total;
+        LocalDate start = query.startDate() == null ? LocalDate.now().minusDays(7) : query.startDate();
+        LocalDate end = query.endDate() == null ? LocalDate.now() : query.endDate();
+        var snapshots = externalParkingDataService.getSlotStatusSnapshots(
+                start.atStartOfDay(), end.atTime(LocalTime.MAX), query.facilityId());
+        long sessions = externalSessionDataService.getCompletedSessionCount(
+                start.atStartOfDay(), end.atTime(LocalTime.MAX));
+        int totalSlots = externalParkingDataService.getTotalSlots(query.facilityId());
+        int days = (int) (end.toEpochDay() - start.toEpochDay() + 1);
 
         return new OccupancyMetrics(
-                total,
-                (int) occupied,
-                rate
+                occupancyAnalyticsService.calculateAverageOccupancyRate(snapshots),
+                occupancyAnalyticsService.identifyPeakHours(snapshots),
+                occupancyAnalyticsService.calculateTurnoverRate(sessions, totalSlots, days),
+                occupancyAnalyticsService.calculateOccupancyByHour(snapshots),
+                totalSlots, start, end
         );
     }
 
-    // TS52 → REVENUE
     @Override
     public RevenueMetrics handle(GetRevenueMetricsQuery query) {
-
-        var payments = paymentRepository.findAll();
-
-        double totalRevenue = payments.stream()
-                .mapToDouble(p -> p.getAmount().value().doubleValue())
-                .sum();
-
-        int totalTransactions = payments.size();
+        LocalDate start = query.startDate() == null ? LocalDate.now().minusDays(7) : query.startDate();
+        LocalDate end = query.endDate() == null ? LocalDate.now() : query.endDate();
+        var payments = externalPaymentDataService.getPaymentSummaries(start.atStartOfDay(), end.atTime(LocalTime.MAX));
 
         return new RevenueMetrics(
-                totalRevenue,
-                totalTransactions
+                revenueAnalyticsService.calculateTotalRevenue(payments),
+                revenueAnalyticsService.calculateAverageTicket(payments),
+                payments.size(),
+                revenueAnalyticsService.groupByPaymentMethod(payments),
+                revenueAnalyticsService.groupByDay(payments),
+                Money.DEFAULT_CURRENCY
         );
     }
 
-    // TS53 → HEATMAP
     @Override
-    public List<HeatmapPoint> handle(GetHeatmapQuery query) {
+    public List<HeatmapEntry> handle(GetHeatmapDataQuery query) {
+        LocalDate start = query.startDate() == null ? LocalDate.now().minusDays(30) : query.startDate();
+        LocalDate end = query.endDate() == null ? LocalDate.now() : query.endDate();
+        var snapshots = externalParkingDataService.getSlotStatusSnapshots(
+                start.atStartOfDay(), end.atTime(LocalTime.MAX), query.facilityId());
 
-        // simplificado (luego se pueden usar sesiones reals)
-        var slots = slotRepository.findAll();
+        // Group by slotId.
+        Map<Long, List<SlotStatusSnapshot>> bySlot = snapshots.stream()
+                .filter(s -> s.slotId() != null)
+                .collect(Collectors.groupingBy(SlotStatusSnapshot::slotId));
 
-        return slots.stream()
-                .map(s -> new HeatmapPoint(
-                        s.getCode().getValue(),
-                        (int) (Math.random() * 10) // mock usage
-                ))
-                .toList();
+        List<HeatmapEntry> entries = new ArrayList<>();
+        bySlot.forEach((slotId, snaps) -> {
+            int occupiedCount = (int) snaps.stream().filter(s -> "OCCUPIED".equals(s.status())).count();
+            entries.add(new HeatmapEntry(slotId, "S-" + slotId,
+                    occupiedCount,
+                    snaps.isEmpty() ? 0.0 : (double) occupiedCount / snaps.size() * 100,
+                    occupiedCount * 10L));
+        });
+        return entries;
     }
+
+    @Override
+    public PeakHoursData handle(GetPeakHoursQuery query) {
+        LocalDate start = query.startDate() == null ? LocalDate.now().minusDays(7) : query.startDate();
+        LocalDate end = query.endDate() == null ? LocalDate.now() : query.endDate();
+        var snapshots = externalParkingDataService.getSlotStatusSnapshots(
+                start.atStartOfDay(), end.atTime(LocalTime.MAX), query.facilityId());
+
+        Map<Integer, Double> occByHour = occupancyAnalyticsService.calculateOccupancyByHour(snapshots);
+        List<Integer> peakHours = occupancyAnalyticsService.identifyPeakHours(snapshots);
+
+        Map<DayOfWeek, long[]> byDay = new EnumMap<>(DayOfWeek.class);
+        for (var s : snapshots) {
+            byDay.computeIfAbsent(s.timestamp().getDayOfWeek(), k -> new long[2]);
+            byDay.get(s.timestamp().getDayOfWeek())[0]++;
+            if ("OCCUPIED".equals(s.status())) byDay.get(s.timestamp().getDayOfWeek())[1]++;
+        }
+        String busiestDay = byDay.entrySet().stream()
+                .max(Comparator.comparingDouble(e -> e.getValue()[0] == 0 ? 0 : (double) e.getValue()[1] / e.getValue()[0]))
+                .map(e -> e.getKey().name())
+                .orElse("UNKNOWN");
+
+        return new PeakHoursData(peakHours, occByHour, busiestDay);
+    }
+
+    @SuppressWarnings("unused")
+    private LocalDateTime ignored() { return null; }
 }

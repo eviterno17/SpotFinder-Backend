@@ -1,12 +1,8 @@
 package com.spotfinderbackend.emergency.domain.model.commands;
 
-import com.spotfinderbackend.shared.domain.model.exceptions.BadRequestException;
-
-public record ResolveEmergencyCommand(
-        Long alertId
-) {
+public record ResolveEmergencyCommand(Long emergencyId, Long adminUserId) {
     public ResolveEmergencyCommand {
-        if (alertId == null || alertId <= 0)
-            throw new BadRequestException("AlertId is required");
+        if (emergencyId == null || emergencyId <= 0)
+            throw new IllegalArgumentException("emergencyId must be > 0");
     }
 }

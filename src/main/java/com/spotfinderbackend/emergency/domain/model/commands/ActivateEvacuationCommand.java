@@ -1,4 +1,3 @@
 package com.spotfinderbackend.emergency.domain.model.commands;
 
-public record ActivateEvacuationCommand() {
-}
+public record ActivateEvacuationCommand(Long emergencyId) { }
