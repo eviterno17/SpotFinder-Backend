@@ -1,14 +1,13 @@
 package com.spotfinderbackend.payments.domain.services;
 
-import com.spotfinderbackend.payments.domain.model.commands.CreatePaymentCommand;
-import com.spotfinderbackend.payments.domain.model.commands.ProcessCulqiPaymentCommand;
-import com.spotfinderbackend.payments.domain.model.commands.ProcessYapePaymentCommand;
+import com.spotfinderbackend.payments.domain.model.aggregates.Payment;
+import com.spotfinderbackend.payments.domain.model.commands.CalculateFeeCommand;
+import com.spotfinderbackend.payments.domain.model.commands.InitiatePaymentCommand;
+import com.spotfinderbackend.payments.domain.model.valueobjects.ParkingFee;
+
+import java.util.Optional;
 
 public interface PaymentCommandService {
-
-    Long handle(CreatePaymentCommand command);
-
-    void handle(ProcessCulqiPaymentCommand command);
-
-    void handle(ProcessYapePaymentCommand command);
+    Optional<Payment> handle(InitiatePaymentCommand command);
+    ParkingFee handle(CalculateFeeCommand command);
 }

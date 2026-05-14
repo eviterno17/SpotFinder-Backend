@@ -5,9 +5,14 @@ import java.time.LocalDateTime;
 
 public record PaymentResource(
         Long id,
-        Long parkingSessionId,
+        Long sessionId,
         BigDecimal amount,
-        String method,
+        String currency,
+        String paymentMethod,
         String status,
-        LocalDateTime paidAt
-) {}
+        String transactionId,
+        String receiptUrl,
+        LocalDateTime paidAt,
+        String duration,
+        int hoursCharged
+) { }

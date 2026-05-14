@@ -1,12 +1,10 @@
 package com.spotfinderbackend.accesscontrol.domain.model.commands;
 
-import com.spotfinderbackend.shared.domain.model.exceptions.BadRequestException;
-
-public record RegisterExitCommand(
-        String plate
-) {
+public record RegisterExitCommand(byte[] imageData, String barrierCode) {
     public RegisterExitCommand {
-        if (plate == null || plate.isBlank())
-            throw new BadRequestException("Plate is required");
+        if (imageData == null || imageData.length == 0)
+            throw new IllegalArgumentException("imageData is required");
+        if (barrierCode == null || barrierCode.isBlank())
+            throw new IllegalArgumentException("barrierCode is required");
     }
 }
