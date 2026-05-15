@@ -15,14 +15,12 @@ public class ExternalIamService {
     }
 
     /**
-     * Looks up a user by license plate. Vehicle-plate registration would normally
-     * live in IAM (or a dedicated Vehicles BC). Until that is wired up we return
-     * empty so the entry flow falls back to an "unidentified" session.
+     * Looks up the user that owns the given plate. Returns empty if the plate
+     * has not been registered by any user (vehicle entry will create an
+     * "unidentified" session in that case).
      */
     public Optional<Long> findUserIdByLicensePlate(String licensePlate) {
-        // Placeholder: PDF mentions plate registration via IAM. To be wired
-        // once user-vehicle profile endpoints are added to IAM.
-        return Optional.empty();
+        return iamContextFacade.findUserIdByLicensePlate(licensePlate);
     }
 
     public Optional<String> findEmailByUserId(Long userId) {

@@ -3,13 +3,17 @@ package com.spotfinderbackend.iam.application.internal.commandservices;
 import com.spotfinderbackend.iam.application.internal.outboundservices.hashing.HashingService;
 import com.spotfinderbackend.iam.application.internal.outboundservices.tokens.TokenService;
 import com.spotfinderbackend.iam.domain.model.aggregates.User;
+import com.spotfinderbackend.iam.domain.model.commands.ChangePasswordCommand;
 import com.spotfinderbackend.iam.domain.model.commands.SignInCommand;
 import com.spotfinderbackend.iam.domain.model.commands.SignUpCommand;
+import com.spotfinderbackend.iam.domain.model.commands.UpdateFcmTokenCommand;
+import com.spotfinderbackend.iam.domain.model.commands.UpdateProfileCommand;
 import com.spotfinderbackend.iam.domain.model.entities.Role;
 import com.spotfinderbackend.iam.domain.model.exceptions.InvalidCredentialsException;
 import com.spotfinderbackend.iam.domain.model.exceptions.RoleNotFoundException;
 import com.spotfinderbackend.iam.domain.model.exceptions.UserAccountDeactivatedException;
 import com.spotfinderbackend.iam.domain.model.exceptions.UserAlreadyExistsException;
+import com.spotfinderbackend.iam.domain.model.exceptions.UserNotFoundException;
 import com.spotfinderbackend.iam.domain.services.RoleValidationService;
 import com.spotfinderbackend.iam.domain.services.UserCommandService;
 import com.spotfinderbackend.iam.infrastructure.persistence.jpa.repositories.RoleRepository;
@@ -128,10 +132,44 @@ public class UserCommandServiceImpl implements UserCommandService {
      * @return JWT token string
      */
     public String generateTokenForUser(User user) {
-        String userRole = user.getRoles().isEmpty() ? "CAR_OWNER" : 
+        String userRole = user.getRoles().isEmpty() ? "CAR_OWNER" :
                          user.getRoles().get(0).getName().name();
 
 
         return tokenService.generateToken(user.getId(), userRole);
+    }
+
+    @Override
+    public Optional<User> handle(UpdateProfileCommand command) {
+        User user = userRepository.findById(command.userId())
+                .orElseThrow(() -> new UserNotFoundException("ID: " + command.userId()));
+        user.updateProfile(command.firstName(), command.lastName());
+        return Optional.of(userRepository.save(user));
+    }
+
+    @Override
+    public void handle(UpdateFcmTokenCommand command) {
+        User user = userRepository.findById(command.userId())
+                .orElseThrow(() -> new UserNotFoundException("ID: " + command.userId()));
+        user.updateFcmToken(command.fcmToken());
+        userRepository.save(user);
+    }
+
+    @Override
+    public void handle(ChangePasswordCommand command) {
+        LOGGER.info("Processing ChangePassword command for user ID: {}", command.userId());
+
+        User user = userRepository.findById(command.userId())
+                .orElseThrow(() -> new UserNotFoundException("ID: " + command.userId()));
+
+        if (!hashingService.matches(command.currentPassword(), user.getPasswordHash())) {
+            throw new InvalidCredentialsException();
+        }
+
+        String newPasswordHash = hashingService.encode(command.newPassword());
+        user.changePassword(newPasswordHash);
+        userRepository.save(user);
+
+        LOGGER.info("Password changed successfully for user ID: {}", user.getId());
     }
 }

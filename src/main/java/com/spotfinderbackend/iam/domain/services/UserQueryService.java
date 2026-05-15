@@ -3,6 +3,7 @@ package com.spotfinderbackend.iam.domain.services;
 import com.spotfinderbackend.iam.domain.model.aggregates.User;
 import com.spotfinderbackend.iam.domain.model.queries.GetAllUsersQuery;
 import com.spotfinderbackend.iam.domain.model.queries.GetUserByEmailQuery;
+import com.spotfinderbackend.iam.domain.model.queries.GetUserByIdQuery;
 
 import java.util.List;
 import java.util.Optional;
@@ -25,4 +26,9 @@ public interface UserQueryService {
      * @return A list of all User aggregates.
      */
     List<User> handle(GetAllUsersQuery query);
+
+    /**
+     * Handles the query to find a user by id (used by profile endpoint).
+     */
+    Optional<User> handle(GetUserByIdQuery query);
 }

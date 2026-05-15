@@ -18,6 +18,10 @@ public class WebSocketConfiguration implements WebSocketMessageBrokerConfigurer 
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws/parking").setAllowedOriginPatterns("*").withSockJS();
+        // Native STOMP-over-WebSocket endpoint used by the Flutter mobile client
+        // (stomp_dart_client connects directly to /ws/parking/websocket).
+        registry.addEndpoint("/ws/parking").setAllowedOriginPatterns("*");
+        // SockJS fallback for browsers / Angular dashboard that cannot use raw WebSocket.
+        registry.addEndpoint("/ws/parking-sockjs").setAllowedOriginPatterns("*").withSockJS();
     }
 }

@@ -37,7 +37,9 @@
       "Bash(git -C \"C:/Users/Admin/Desktop/Iot/SpotFinder-Backend\" show origin/develop:src/main/java/com/spotfinderbackend/payments/interfaces/rest/PaymentController.java)",
       "Bash(git -C \"C:/Users/Admin/Desktop/Iot/SpotFinder-Backend\" show origin/develop:src/main/java/com/spotfinderbackend/accesscontrol/interfaces/rest/AccessControlController.java)",
       "Bash(git -C \"C:/Users/Admin/Desktop/Iot/SpotFinder-Backend\" show origin/develop:src/main/java/com/spotfinderbackend/parkingsessions/domain/model/aggregates/ParkingSession.java)",
-      "Bash(git -C \"C:/Users/Admin/Desktop/Iot/SpotFinder-Backend\" show origin/develop:src/main/java/com/spotfinderbackend/parkingmonitoring/domain/model/valueobjects/ParkingSlotCode.java)"
+      "Bash(git -C \"C:/Users/Admin/Desktop/Iot/SpotFinder-Backend\" show origin/develop:src/main/java/com/spotfinderbackend/parkingmonitoring/domain/model/valueobjects/ParkingSlotCode.java)",
+      "Bash(\"C:\\\\Program Files\\\\Git\\\\mingw64\\\\bin\\\\pdftotext.exe\" -f 45 -l 80 -layout \"C:\\\\Users\\\\Admin\\\\Downloads\\\\upc-pre-202610-1asi0572-6772-ParkSense-report-av1.pdf\" \"C:\\\\Users\\\\Admin\\\\Desktop\\\\Iot\\\\SpotFinder-Backend\\\\_pdf_ch3.txt\")",
+      "Bash(./mvnw -q -DskipTests compile)"
     ]
   }
 }
