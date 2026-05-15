@@ -3,6 +3,7 @@ package com.spotfinderbackend.iam.application.internal.commandservices;
 import com.spotfinderbackend.iam.application.internal.outboundservices.hashing.HashingService;
 import com.spotfinderbackend.iam.application.internal.outboundservices.tokens.TokenService;
 import com.spotfinderbackend.iam.domain.model.aggregates.User;
+import com.spotfinderbackend.iam.domain.model.commands.ChangePasswordCommand;
 import com.spotfinderbackend.iam.domain.model.commands.SignInCommand;
 import com.spotfinderbackend.iam.domain.model.commands.SignUpCommand;
 import com.spotfinderbackend.iam.domain.model.commands.UpdateFcmTokenCommand;
@@ -152,5 +153,23 @@ public class UserCommandServiceImpl implements UserCommandService {
                 .orElseThrow(() -> new UserNotFoundException("ID: " + command.userId()));
         user.updateFcmToken(command.fcmToken());
         userRepository.save(user);
+    }
+
+    @Override
+    public void handle(ChangePasswordCommand command) {
+        LOGGER.info("Processing ChangePassword command for user ID: {}", command.userId());
+
+        User user = userRepository.findById(command.userId())
+                .orElseThrow(() -> new UserNotFoundException("ID: " + command.userId()));
+
+        if (!hashingService.matches(command.currentPassword(), user.getPasswordHash())) {
+            throw new InvalidCredentialsException();
+        }
+
+        String newPasswordHash = hashingService.encode(command.newPassword());
+        user.changePassword(newPasswordHash);
+        userRepository.save(user);
+
+        LOGGER.info("Password changed successfully for user ID: {}", user.getId());
     }
 }

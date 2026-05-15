@@ -1,6 +1,7 @@
 package com.spotfinderbackend.iam.domain.services;
 
 import com.spotfinderbackend.iam.domain.model.aggregates.User;
+import com.spotfinderbackend.iam.domain.model.commands.ChangePasswordCommand;
 import com.spotfinderbackend.iam.domain.model.commands.SignInCommand;
 import com.spotfinderbackend.iam.domain.model.commands.SignUpCommand;
 import com.spotfinderbackend.iam.domain.model.commands.UpdateFcmTokenCommand;
@@ -16,4 +17,6 @@ public interface UserCommandService {
     Optional<User> handle(UpdateProfileCommand command);
 
     void handle(UpdateFcmTokenCommand command);
+
+    void handle(ChangePasswordCommand command);
 }

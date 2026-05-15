@@ -3,6 +3,7 @@ package com.spotfinderbackend.iam.interfaces;
 import com.spotfinderbackend.iam.application.internal.commandservices.UserCommandServiceImpl;
 import com.spotfinderbackend.iam.application.internal.queryservices.UserQueryServiceImpl;
 import com.spotfinderbackend.iam.domain.model.aggregates.User;
+import com.spotfinderbackend.iam.domain.model.commands.ChangePasswordCommand;
 import com.spotfinderbackend.iam.domain.model.commands.SignInCommand;
 import com.spotfinderbackend.iam.domain.model.commands.SignUpCommand;
 import com.spotfinderbackend.iam.domain.model.commands.UpdateFcmTokenCommand;
@@ -16,6 +17,7 @@ import com.spotfinderbackend.iam.domain.model.queries.GetUserByEmailQuery;
 import com.spotfinderbackend.iam.domain.model.queries.GetUserByIdQuery;
 import com.spotfinderbackend.iam.domain.services.RoleValidationService;
 import com.spotfinderbackend.iam.interfaces.rest.resources.AuthenticationResponseResource;
+import com.spotfinderbackend.iam.interfaces.rest.resources.ChangePasswordResource;
 import com.spotfinderbackend.iam.interfaces.rest.resources.SignInResource;
 import com.spotfinderbackend.iam.interfaces.rest.resources.SignUpResource;
 import com.spotfinderbackend.iam.interfaces.rest.resources.UpdateFcmTokenResource;
@@ -70,14 +72,14 @@ public class UsersController {
         try {
             System.out.println("🚀 Entrando al endpoint /signup");
             LOGGER.info("Processing signup request for email: {}", signUpResource.email());
-            
+
             SignUpCommand command = SignUpCommandFromResourceAssembler.toCommandFromResource(signUpResource);
             userCommandService.handle(command);
-            
+
             LOGGER.info("User registered successfully: {}", signUpResource.email());
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body("User registered successfully");
-                    
+
         } catch (UserAlreadyExistsException e) {
             LOGGER.warn("Signup failed for email {}: {}", signUpResource.email(), e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -102,27 +104,27 @@ public class UsersController {
     public ResponseEntity<?> signIn(@Valid @RequestBody SignInResource signInResource) {
         try {
             LOGGER.info("Processing signin request for email: {}", signInResource.email());
-            
+
             SignInCommand command = SignInCommandFromResourceAssembler.toCommandfromResource(signInResource);
             userCommandService.handle(command);
-            
+
             // Get user details for token generation
             Optional<User> userOptional = userQueryService.handle(new GetUserByEmailQuery(signInResource.email()));
             if (userOptional.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body("Authentication failed");
             }
-            
+
             User user = userOptional.get();
             String token = userCommandService.generateTokenForUser(user);
             UserResource userResource = UserResourceFromEntityAssembler.toResourceFromEntity(user);
-            
+
             // Token expires in 7 days (604800 seconds)
             AuthenticationResponseResource response = AuthenticationResponseResource.of(token, 604800L, userResource);
-            
+
             LOGGER.info("User authenticated successfully: {}", signInResource.email());
             return ResponseEntity.ok(response);
-                    
+
         } catch (InvalidCredentialsException e) {
             LOGGER.warn("Signin failed for email {}: {}", signInResource.email(), e.getMessage());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -151,18 +153,18 @@ public class UsersController {
     public ResponseEntity<?> getUserByEmail(@RequestParam String email) {
         try {
             LOGGER.debug("Processing getUserByEmail request for email: {}", email);
-            
+
             Optional<User> userOptional = userQueryService.handle(new GetUserByEmailQuery(email));
-            
+
             if (userOptional.isEmpty()) {
                 throw new UserNotFoundException(email);
             }
-            
+
             User user = userOptional.get();
             UserResource userResource = UserResourceFromEntityAssembler.toResourceFromEntity(user);
-            
+
             return ResponseEntity.ok(userResource);
-                    
+
         } catch (UserNotFoundException e) {
             LOGGER.warn("User not found with email: {}", email);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -182,14 +184,14 @@ public class UsersController {
     public ResponseEntity<?> getAllUsers() {
         try {
             LOGGER.debug("Processing getAllUsers request");
-            
+
             List<User> users = userQueryService.handle(new GetAllUsersQuery());
             List<UserResource> userResources = users.stream()
                     .map(UserResourceFromEntityAssembler::toResourceFromEntity)
                     .toList();
-            
+
             return ResponseEntity.ok(userResources);
-                    
+
         } catch (Exception e) {
             LOGGER.error("Unexpected error retrieving all users: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -260,6 +262,42 @@ public class UsersController {
         } catch (UserNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    /**
+     * Change the password of an authenticated user.
+     * The driver must supply their current password for verification.
+     *
+     * @param userId   the id of the user whose password is being changed
+     * @param resource body with `currentPassword` and `newPassword`
+     * @return 204 No Content on success, 401 if the current password is wrong,
+     *         404 if the user does not exist, 400 if the input is invalid.
+     */
+    @PostMapping("/{userId}/change-password")
+    public ResponseEntity<?> changePassword(@PathVariable Long userId,
+                                            @RequestBody ChangePasswordResource resource) {
+        try {
+            LOGGER.info("Processing change-password request for user ID: {}", userId);
+
+            var command = new ChangePasswordCommand(
+                    userId,
+                    resource.currentPassword(),
+                    resource.newPassword()
+            );
+            userCommandService.handle(command);
+
+            return ResponseEntity.noContent().build();
+
+        } catch (UserNotFoundException e) {
+            LOGGER.warn("Change-password failed for user ID {}: {}", userId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (InvalidCredentialsException e) {
+            LOGGER.warn("Change-password failed for user ID {}: current password mismatch", userId);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Current password is incorrect");
+        } catch (IllegalArgumentException e) {
+            LOGGER.warn("Change-password failed for user ID {}: {}", userId, e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
     }

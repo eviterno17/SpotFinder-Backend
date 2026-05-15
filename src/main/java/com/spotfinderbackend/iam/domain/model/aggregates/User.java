@@ -84,4 +84,12 @@ public class User extends AuditableAbstractAggregateRoot<User> {
     public void updateFcmToken(String fcmToken) {
         this.fcmToken = (fcmToken == null || fcmToken.isBlank()) ? null : fcmToken;
     }
+
+    /** Replace the password hash. The caller is responsible for hashing the new value. */
+    public void changePassword(String newPasswordHash) {
+        if (newPasswordHash == null || newPasswordHash.isBlank()) {
+            throw new IllegalArgumentException("Password hash cannot be empty");
+        }
+        this.passwordHash = newPasswordHash;
+    }
 }
