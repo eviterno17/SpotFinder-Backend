@@ -3,8 +3,10 @@ package com.spotfinderbackend.iam.interfaces;
 import com.spotfinderbackend.iam.application.internal.commandservices.UserCommandServiceImpl;
 import com.spotfinderbackend.iam.application.internal.queryservices.UserQueryServiceImpl;
 import com.spotfinderbackend.iam.domain.model.aggregates.User;
+import com.spotfinderbackend.iam.domain.model.commands.ChangePasswordCommand;
 import com.spotfinderbackend.iam.domain.model.commands.SignInCommand;
 import com.spotfinderbackend.iam.domain.model.commands.SignUpCommand;
+import com.spotfinderbackend.iam.domain.model.commands.UpdateProfileCommand;
 import com.spotfinderbackend.iam.domain.model.exceptions.InvalidCredentialsException;
 import com.spotfinderbackend.iam.domain.model.exceptions.UserAccountDeactivatedException;
 import com.spotfinderbackend.iam.domain.model.exceptions.UserAlreadyExistsException;
@@ -13,8 +15,10 @@ import com.spotfinderbackend.iam.domain.model.queries.GetAllUsersQuery;
 import com.spotfinderbackend.iam.domain.model.queries.GetUserByEmailQuery;
 import com.spotfinderbackend.iam.domain.services.RoleValidationService;
 import com.spotfinderbackend.iam.interfaces.rest.resources.AuthenticationResponseResource;
+import com.spotfinderbackend.iam.interfaces.rest.resources.ChangePasswordResource;
 import com.spotfinderbackend.iam.interfaces.rest.resources.SignInResource;
 import com.spotfinderbackend.iam.interfaces.rest.resources.SignUpResource;
+import com.spotfinderbackend.iam.interfaces.rest.resources.UpdateProfileResource;
 import com.spotfinderbackend.iam.interfaces.rest.resources.UserResource;
 import com.spotfinderbackend.iam.interfaces.rest.transform.SignInCommandFromResourceAssembler;
 import com.spotfinderbackend.iam.interfaces.rest.transform.SignUpCommandFromResourceAssembler;
@@ -200,15 +204,79 @@ public class UsersController {
     public ResponseEntity<?> getAvailableRoles() {
         try {
             LOGGER.debug("Processing getAvailableRoles request");
-            
+
             var availableRoles = roleValidationService.getAvailableRolesForRegistration();
-            
+
             return ResponseEntity.ok(availableRoles);
-                    
+
         } catch (Exception e) {
             LOGGER.error("Unexpected error retrieving available roles: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("An unexpected error occurred while retrieving available roles");
+        }
+    }
+
+    /**
+     * Update the profile (first name / last name) of an authenticated user.
+     * Email and roles are intentionally not editable here.
+     *
+     * @param userId   the id of the user being updated
+     * @param resource body with the new `firstName` and `lastName`
+     * @return 200 with the updated user, 404 if not found, 400 if input invalid.
+     */
+    @PutMapping("/{userId}")
+    public ResponseEntity<?> updateProfile(@PathVariable Long userId,
+                                           @RequestBody UpdateProfileResource resource) {
+        try {
+            LOGGER.info("Processing update-profile request for user ID: {}", userId);
+
+            var command = new UpdateProfileCommand(userId, resource.firstName(), resource.lastName());
+            var user = userCommandService.handle(command);
+
+            return user
+                    .map(u -> ResponseEntity.ok(UserResourceFromEntityAssembler.toResourceFromEntity(u)))
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(null));
+
+        } catch (UserNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    /**
+     * Change the password of an authenticated user.
+     * The driver must supply their current password for verification.
+     *
+     * @param userId   the id of the user whose password is being changed
+     * @param resource body with `currentPassword` and `newPassword`
+     * @return 204 No Content on success, 401 if the current password is wrong,
+     *         404 if the user does not exist, 400 if the input is invalid.
+     */
+    @PostMapping("/{userId}/change-password")
+    public ResponseEntity<?> changePassword(@PathVariable Long userId,
+                                            @RequestBody ChangePasswordResource resource) {
+        try {
+            LOGGER.info("Processing change-password request for user ID: {}", userId);
+
+            var command = new ChangePasswordCommand(
+                    userId,
+                    resource.currentPassword(),
+                    resource.newPassword()
+            );
+            userCommandService.handle(command);
+
+            return ResponseEntity.noContent().build();
+
+        } catch (UserNotFoundException e) {
+            LOGGER.warn("Change-password failed for user ID {}: {}", userId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (InvalidCredentialsException e) {
+            LOGGER.warn("Change-password failed for user ID {}: current password mismatch", userId);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Current password is incorrect");
+        } catch (IllegalArgumentException e) {
+            LOGGER.warn("Change-password failed for user ID {}: {}", userId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
     }
 }

@@ -69,4 +69,18 @@ public class User extends AuditableAbstractAggregateRoot<User> {
     public String getFullName() {
         return String.format("%s %s", firstName, lastName).trim();
     }
+
+    /** Replace the password hash. The caller is responsible for hashing the new value. */
+    public void changePassword(String newPasswordHash) {
+        if (newPasswordHash == null || newPasswordHash.isBlank()) {
+            throw new IllegalArgumentException("Password hash cannot be empty");
+        }
+        this.passwordHash = newPasswordHash;
+    }
+
+    /** Update profile fields. Null / blank values are ignored. */
+    public void updateProfile(String firstName, String lastName) {
+        if (firstName != null && !firstName.isBlank()) this.firstName = firstName;
+        if (lastName != null && !lastName.isBlank()) this.lastName = lastName;
+    }
 }
