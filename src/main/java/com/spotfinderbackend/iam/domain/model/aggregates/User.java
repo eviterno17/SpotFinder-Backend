@@ -33,6 +33,10 @@ public class User extends AuditableAbstractAggregateRoot<User> {
     @Column(nullable = false)
     private Boolean active = true;
 
+    /** Firebase Cloud Messaging token used to deliver push notifications to this user's device. */
+    @Column(length = 500)
+    private String fcmToken;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "user_roles",
             joinColumns = @JoinColumn(name = "user_id"),
@@ -68,5 +72,16 @@ public class User extends AuditableAbstractAggregateRoot<User> {
     
     public String getFullName() {
         return String.format("%s %s", firstName, lastName).trim();
+    }
+
+    /** Update profile fields. Null/blank values are ignored. */
+    public void updateProfile(String firstName, String lastName) {
+        if (firstName != null && !firstName.isBlank()) this.firstName = firstName;
+        if (lastName != null && !lastName.isBlank()) this.lastName = lastName;
+    }
+
+    /** Replace the FCM token (called when the mobile app registers/refreshes its token). */
+    public void updateFcmToken(String fcmToken) {
+        this.fcmToken = (fcmToken == null || fcmToken.isBlank()) ? null : fcmToken;
     }
 }

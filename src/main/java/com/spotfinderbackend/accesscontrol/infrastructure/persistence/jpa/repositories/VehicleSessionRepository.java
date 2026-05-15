@@ -19,4 +19,11 @@ public interface VehicleSessionRepository extends JpaRepository<VehicleSession, 
     List<VehicleSession> findByUserIdOrderByEntryTimestampDesc(UserId userId);
 
     boolean existsByLicensePlate_PlateTextAndSessionStatus(String plateText, SessionStatus status);
+
+    /**
+     * Active session without slot assigned, ordered by most recent entry first.
+     * Used by the SlotStatusChangedEvent handler to correlate "slot just became
+     * OCCUPIED" with "vehicle that just entered".
+     */
+    Optional<VehicleSession> findFirstBySessionStatusAndSlotId_ValueIsNullOrderByEntryTimestampDesc(SessionStatus status);
 }

@@ -5,16 +5,21 @@ import com.spotfinderbackend.iam.application.internal.queryservices.UserQuerySer
 import com.spotfinderbackend.iam.domain.model.aggregates.User;
 import com.spotfinderbackend.iam.domain.model.commands.SignInCommand;
 import com.spotfinderbackend.iam.domain.model.commands.SignUpCommand;
+import com.spotfinderbackend.iam.domain.model.commands.UpdateFcmTokenCommand;
+import com.spotfinderbackend.iam.domain.model.commands.UpdateProfileCommand;
 import com.spotfinderbackend.iam.domain.model.exceptions.InvalidCredentialsException;
 import com.spotfinderbackend.iam.domain.model.exceptions.UserAccountDeactivatedException;
 import com.spotfinderbackend.iam.domain.model.exceptions.UserAlreadyExistsException;
 import com.spotfinderbackend.iam.domain.model.exceptions.UserNotFoundException;
 import com.spotfinderbackend.iam.domain.model.queries.GetAllUsersQuery;
 import com.spotfinderbackend.iam.domain.model.queries.GetUserByEmailQuery;
+import com.spotfinderbackend.iam.domain.model.queries.GetUserByIdQuery;
 import com.spotfinderbackend.iam.domain.services.RoleValidationService;
 import com.spotfinderbackend.iam.interfaces.rest.resources.AuthenticationResponseResource;
 import com.spotfinderbackend.iam.interfaces.rest.resources.SignInResource;
 import com.spotfinderbackend.iam.interfaces.rest.resources.SignUpResource;
+import com.spotfinderbackend.iam.interfaces.rest.resources.UpdateFcmTokenResource;
+import com.spotfinderbackend.iam.interfaces.rest.resources.UpdateProfileResource;
 import com.spotfinderbackend.iam.interfaces.rest.resources.UserResource;
 import com.spotfinderbackend.iam.interfaces.rest.transform.SignInCommandFromResourceAssembler;
 import com.spotfinderbackend.iam.interfaces.rest.transform.SignUpCommandFromResourceAssembler;
@@ -200,15 +205,62 @@ public class UsersController {
     public ResponseEntity<?> getAvailableRoles() {
         try {
             LOGGER.debug("Processing getAvailableRoles request");
-            
+
             var availableRoles = roleValidationService.getAvailableRolesForRegistration();
-            
+
             return ResponseEntity.ok(availableRoles);
-                    
+
         } catch (Exception e) {
             LOGGER.error("Unexpected error retrieving available roles: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("An unexpected error occurred while retrieving available roles");
+        }
+    }
+
+    /**
+     * TS32 — Get user by id.
+     */
+    @GetMapping("/{userId}")
+    public ResponseEntity<?> getUserById(@PathVariable Long userId) {
+        Optional<User> user = userQueryService.handle(new GetUserByIdQuery(userId));
+        if (user.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found: " + userId);
+        }
+        return ResponseEntity.ok(UserResourceFromEntityAssembler.toResourceFromEntity(user.get()));
+    }
+
+    /**
+     * TS33 — Update user profile.
+     */
+    @PutMapping("/{userId}")
+    public ResponseEntity<?> updateProfile(@PathVariable Long userId,
+                                           @RequestBody UpdateProfileResource resource) {
+        try {
+            var command = new UpdateProfileCommand(userId, resource.firstName(), resource.lastName());
+            var user = userCommandService.handle(command);
+            return user
+                    .map(u -> ResponseEntity.ok(UserResourceFromEntityAssembler.toResourceFromEntity(u)))
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(null));
+        } catch (UserNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    /**
+     * Register / refresh the FCM token used to send push notifications to this user.
+     */
+    @PostMapping("/{userId}/fcm-token")
+    public ResponseEntity<?> updateFcmToken(@PathVariable Long userId,
+                                            @RequestBody UpdateFcmTokenResource resource) {
+        try {
+            userCommandService.handle(new UpdateFcmTokenCommand(userId, resource.fcmToken()));
+            return ResponseEntity.noContent().build();
+        } catch (UserNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
     }
 }
