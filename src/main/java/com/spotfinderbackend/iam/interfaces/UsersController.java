@@ -6,6 +6,7 @@ import com.spotfinderbackend.iam.domain.model.aggregates.User;
 import com.spotfinderbackend.iam.domain.model.commands.ChangePasswordCommand;
 import com.spotfinderbackend.iam.domain.model.commands.SignInCommand;
 import com.spotfinderbackend.iam.domain.model.commands.SignUpCommand;
+import com.spotfinderbackend.iam.domain.model.commands.UpdateFcmTokenCommand;
 import com.spotfinderbackend.iam.domain.model.commands.UpdateProfileCommand;
 import com.spotfinderbackend.iam.domain.model.exceptions.InvalidCredentialsException;
 import com.spotfinderbackend.iam.domain.model.exceptions.UserAccountDeactivatedException;
@@ -13,11 +14,13 @@ import com.spotfinderbackend.iam.domain.model.exceptions.UserAlreadyExistsExcept
 import com.spotfinderbackend.iam.domain.model.exceptions.UserNotFoundException;
 import com.spotfinderbackend.iam.domain.model.queries.GetAllUsersQuery;
 import com.spotfinderbackend.iam.domain.model.queries.GetUserByEmailQuery;
+import com.spotfinderbackend.iam.domain.model.queries.GetUserByIdQuery;
 import com.spotfinderbackend.iam.domain.services.RoleValidationService;
 import com.spotfinderbackend.iam.interfaces.rest.resources.AuthenticationResponseResource;
 import com.spotfinderbackend.iam.interfaces.rest.resources.ChangePasswordResource;
 import com.spotfinderbackend.iam.interfaces.rest.resources.SignInResource;
 import com.spotfinderbackend.iam.interfaces.rest.resources.SignUpResource;
+import com.spotfinderbackend.iam.interfaces.rest.resources.UpdateFcmTokenResource;
 import com.spotfinderbackend.iam.interfaces.rest.resources.UpdateProfileResource;
 import com.spotfinderbackend.iam.interfaces.rest.resources.UserResource;
 import com.spotfinderbackend.iam.interfaces.rest.transform.SignInCommandFromResourceAssembler;
@@ -69,14 +72,14 @@ public class UsersController {
         try {
             System.out.println("🚀 Entrando al endpoint /signup");
             LOGGER.info("Processing signup request for email: {}", signUpResource.email());
-            
+
             SignUpCommand command = SignUpCommandFromResourceAssembler.toCommandFromResource(signUpResource);
             userCommandService.handle(command);
-            
+
             LOGGER.info("User registered successfully: {}", signUpResource.email());
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body("User registered successfully");
-                    
+
         } catch (UserAlreadyExistsException e) {
             LOGGER.warn("Signup failed for email {}: {}", signUpResource.email(), e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -101,27 +104,27 @@ public class UsersController {
     public ResponseEntity<?> signIn(@Valid @RequestBody SignInResource signInResource) {
         try {
             LOGGER.info("Processing signin request for email: {}", signInResource.email());
-            
+
             SignInCommand command = SignInCommandFromResourceAssembler.toCommandfromResource(signInResource);
             userCommandService.handle(command);
-            
+
             // Get user details for token generation
             Optional<User> userOptional = userQueryService.handle(new GetUserByEmailQuery(signInResource.email()));
             if (userOptional.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body("Authentication failed");
             }
-            
+
             User user = userOptional.get();
             String token = userCommandService.generateTokenForUser(user);
             UserResource userResource = UserResourceFromEntityAssembler.toResourceFromEntity(user);
-            
+
             // Token expires in 7 days (604800 seconds)
             AuthenticationResponseResource response = AuthenticationResponseResource.of(token, 604800L, userResource);
-            
+
             LOGGER.info("User authenticated successfully: {}", signInResource.email());
             return ResponseEntity.ok(response);
-                    
+
         } catch (InvalidCredentialsException e) {
             LOGGER.warn("Signin failed for email {}: {}", signInResource.email(), e.getMessage());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -150,18 +153,18 @@ public class UsersController {
     public ResponseEntity<?> getUserByEmail(@RequestParam String email) {
         try {
             LOGGER.debug("Processing getUserByEmail request for email: {}", email);
-            
+
             Optional<User> userOptional = userQueryService.handle(new GetUserByEmailQuery(email));
-            
+
             if (userOptional.isEmpty()) {
                 throw new UserNotFoundException(email);
             }
-            
+
             User user = userOptional.get();
             UserResource userResource = UserResourceFromEntityAssembler.toResourceFromEntity(user);
-            
+
             return ResponseEntity.ok(userResource);
-                    
+
         } catch (UserNotFoundException e) {
             LOGGER.warn("User not found with email: {}", email);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -181,14 +184,14 @@ public class UsersController {
     public ResponseEntity<?> getAllUsers() {
         try {
             LOGGER.debug("Processing getAllUsers request");
-            
+
             List<User> users = userQueryService.handle(new GetAllUsersQuery());
             List<UserResource> userResources = users.stream()
                     .map(UserResourceFromEntityAssembler::toResourceFromEntity)
                     .toList();
-            
+
             return ResponseEntity.ok(userResources);
-                    
+
         } catch (Exception e) {
             LOGGER.error("Unexpected error retrieving all users: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -217,26 +220,45 @@ public class UsersController {
     }
 
     /**
-     * Update the profile (first name / last name) of an authenticated user.
-     * Email and roles are intentionally not editable here.
-     *
-     * @param userId   the id of the user being updated
-     * @param resource body with the new `firstName` and `lastName`
-     * @return 200 with the updated user, 404 if not found, 400 if input invalid.
+     * TS32 — Get user by id.
+     */
+    @GetMapping("/{userId}")
+    public ResponseEntity<?> getUserById(@PathVariable Long userId) {
+        Optional<User> user = userQueryService.handle(new GetUserByIdQuery(userId));
+        if (user.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found: " + userId);
+        }
+        return ResponseEntity.ok(UserResourceFromEntityAssembler.toResourceFromEntity(user.get()));
+    }
+
+    /**
+     * TS33 — Update user profile.
      */
     @PutMapping("/{userId}")
     public ResponseEntity<?> updateProfile(@PathVariable Long userId,
                                            @RequestBody UpdateProfileResource resource) {
         try {
-            LOGGER.info("Processing update-profile request for user ID: {}", userId);
-
             var command = new UpdateProfileCommand(userId, resource.firstName(), resource.lastName());
             var user = userCommandService.handle(command);
-
             return user
                     .map(u -> ResponseEntity.ok(UserResourceFromEntityAssembler.toResourceFromEntity(u)))
                     .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(null));
+        } catch (UserNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
 
+    /**
+     * Register / refresh the FCM token used to send push notifications to this user.
+     */
+    @PostMapping("/{userId}/fcm-token")
+    public ResponseEntity<?> updateFcmToken(@PathVariable Long userId,
+                                            @RequestBody UpdateFcmTokenResource resource) {
+        try {
+            userCommandService.handle(new UpdateFcmTokenCommand(userId, resource.fcmToken()));
+            return ResponseEntity.noContent().build();
         } catch (UserNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (IllegalArgumentException e) {

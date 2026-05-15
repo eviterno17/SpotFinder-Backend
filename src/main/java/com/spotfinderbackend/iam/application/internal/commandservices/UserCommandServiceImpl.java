@@ -6,6 +6,7 @@ import com.spotfinderbackend.iam.domain.model.aggregates.User;
 import com.spotfinderbackend.iam.domain.model.commands.ChangePasswordCommand;
 import com.spotfinderbackend.iam.domain.model.commands.SignInCommand;
 import com.spotfinderbackend.iam.domain.model.commands.SignUpCommand;
+import com.spotfinderbackend.iam.domain.model.commands.UpdateFcmTokenCommand;
 import com.spotfinderbackend.iam.domain.model.commands.UpdateProfileCommand;
 import com.spotfinderbackend.iam.domain.model.entities.Role;
 import com.spotfinderbackend.iam.domain.model.exceptions.InvalidCredentialsException;
@@ -139,6 +140,22 @@ public class UserCommandServiceImpl implements UserCommandService {
     }
 
     @Override
+    public Optional<User> handle(UpdateProfileCommand command) {
+        User user = userRepository.findById(command.userId())
+                .orElseThrow(() -> new UserNotFoundException("ID: " + command.userId()));
+        user.updateProfile(command.firstName(), command.lastName());
+        return Optional.of(userRepository.save(user));
+    }
+
+    @Override
+    public void handle(UpdateFcmTokenCommand command) {
+        User user = userRepository.findById(command.userId())
+                .orElseThrow(() -> new UserNotFoundException("ID: " + command.userId()));
+        user.updateFcmToken(command.fcmToken());
+        userRepository.save(user);
+    }
+
+    @Override
     public void handle(ChangePasswordCommand command) {
         LOGGER.info("Processing ChangePassword command for user ID: {}", command.userId());
 
@@ -154,16 +171,5 @@ public class UserCommandServiceImpl implements UserCommandService {
         userRepository.save(user);
 
         LOGGER.info("Password changed successfully for user ID: {}", user.getId());
-    }
-
-    @Override
-    public Optional<User> handle(UpdateProfileCommand command) {
-        LOGGER.info("Processing UpdateProfile command for user ID: {}", command.userId());
-
-        User user = userRepository.findById(command.userId())
-                .orElseThrow(() -> new UserNotFoundException("ID: " + command.userId()));
-
-        user.updateProfile(command.firstName(), command.lastName());
-        return Optional.of(userRepository.save(user));
     }
 }

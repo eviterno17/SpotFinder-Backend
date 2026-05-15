@@ -40,4 +40,10 @@ public interface IamContextFacade {
      * Used by Notification Management BC to send push notifications.
      */
     Optional<String> findFcmTokenByUserId(Long userId);
+
+    /**
+     * Returns the user that owns the given plate, if any.
+     * Used by Access Control's ALPR flow to associate an entry to a user.
+     */
+    Optional<Long> findUserIdByLicensePlate(String licensePlate);
 }

@@ -3,6 +3,7 @@ package com.spotfinderbackend.iam.application.internal.queryservices;
 import com.spotfinderbackend.iam.domain.model.aggregates.User;
 import com.spotfinderbackend.iam.domain.model.queries.GetAllUsersQuery;
 import com.spotfinderbackend.iam.domain.model.queries.GetUserByEmailQuery;
+import com.spotfinderbackend.iam.domain.model.queries.GetUserByIdQuery;
 import com.spotfinderbackend.iam.domain.services.UserQueryService;
 import com.spotfinderbackend.iam.infrastructure.persistence.jpa.repositories.UserRepository;
 import org.slf4j.Logger;
@@ -51,11 +52,17 @@ public class UserQueryServiceImpl implements UserQueryService {
     @Override
     public List<User> handle(GetAllUsersQuery query) {
         LOGGER.debug("Processing GetAllUsersQuery");
-        
+
         List<User> users = userRepository.findAll();
-        
+
         LOGGER.debug("Retrieved {} users", users.size());
-        
+
         return users;
+    }
+
+    @Override
+    public Optional<User> handle(GetUserByIdQuery query) {
+        LOGGER.debug("Processing GetUserByIdQuery for id: {}", query.userId());
+        return userRepository.findById(query.userId());
     }
 }
