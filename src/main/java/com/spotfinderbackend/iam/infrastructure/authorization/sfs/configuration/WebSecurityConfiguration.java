@@ -63,14 +63,20 @@ public class WebSecurityConfiguration {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .cors(cors -> cors.configurationSource(request -> {
-                    var corsConfig = new CorsConfiguration();
-                    corsConfig.setAllowedOrigins(List.of("http://localhost:4200"));
-                    corsConfig.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-                    corsConfig.setAllowedHeaders(List.of("*"));
-                    corsConfig.setAllowCredentials(true);
-                    return corsConfig;
-                }))
+               .cors(cors -> cors.configurationSource(request -> {
+    var corsConfig = new CorsConfiguration();
+    // Leer la variable de entorno CORS_ORIGINS, o usar un valor por defecto
+    String originsEnv = System.getenv("CORS_ORIGINS");
+    List<String> allowedOrigins = (originsEnv != null && !originsEnv.isBlank())
+            ? Arrays.asList(originsEnv.split(","))
+            : List.of("http://localhost:4200"); // fallback para desarrollo local
+
+    corsConfig.setAllowedOrigins(allowedOrigins);
+    corsConfig.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+    corsConfig.setAllowedHeaders(List.of("*"));
+    corsConfig.setAllowCredentials(true);
+    return corsConfig;
+}))
                 .csrf(csrf -> csrf.disable())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthorizedRequestHandler))
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
