@@ -16,11 +16,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
-
-import java.util.Arrays;
-
-import java.util.List;
 
 /**
  * Web Security Configuration.
@@ -65,20 +60,8 @@ public class WebSecurityConfiguration {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-               .cors(cors -> cors.configurationSource(request -> {
-    var corsConfig = new CorsConfiguration();
-    // Leer la variable de entorno CORS_ORIGINS, o usar un valor por defecto
-    String originsEnv = System.getenv("CORS_ORIGINS");
-    List<String> allowedOrigins = (originsEnv != null && !originsEnv.isBlank())
-            ? Arrays.asList(originsEnv.split(","))
-            : List.of("http://localhost:4200"); // fallback para desarrollo local
-
-    corsConfig.setAllowedOrigins(allowedOrigins);
-    corsConfig.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-    corsConfig.setAllowedHeaders(List.of("*"));
-    corsConfig.setAllowCredentials(true);
-    return corsConfig;
-}))
+                // Desactivamos la configuración CORS de Spring Security, ya que un CorsFilter global lo manejará
+                .cors(cors -> cors.disable())
                 .csrf(csrf -> csrf.disable())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthorizedRequestHandler))
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
