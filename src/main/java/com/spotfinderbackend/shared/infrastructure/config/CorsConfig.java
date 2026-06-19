@@ -17,11 +17,11 @@ public class CorsConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
 
-        // Leer la variable de entorno CORS_ORIGINS, o usar un fallback para desarrollo
+        // Leer la variable de entorno CORS_ORIGINS, o usar fallback
         String originsEnv = System.getenv("CORS_ORIGINS");
         List<String> allowedOrigins = (originsEnv != null && !originsEnv.isBlank())
                 ? Arrays.asList(originsEnv.split(","))
-                : List.of("http://localhost:4200"); // fallback
+                : List.of("https://spot-finder-frontend.vercel.app", "http://localhost:4200");
 
         config.setAllowedOrigins(allowedOrigins);
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
