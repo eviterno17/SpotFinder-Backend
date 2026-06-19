@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.Customizer; // <-- IMPORTANTE: Nuevo import
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -60,8 +61,8 @@ public class WebSecurityConfiguration {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // Desactivamos la configuración CORS de Spring Security, ya que un CorsFilter global lo manejará
-                .cors(cors -> cors.disable())
+                // AQUÍ ESTÁ LA MAGIA: Le decimos a Spring Security que use la configuración CORS global
+                .cors(Customizer.withDefaults()) 
                 .csrf(csrf -> csrf.disable())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthorizedRequestHandler))
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -77,7 +78,6 @@ public class WebSecurityConfiguration {
                                 "/swagger-resources/**",
                                 "/webjars/**"
                         ).permitAll()
-                        // Edge-server / IoT endpoints (no JWT). Dejamos abiertos para prototipo
                         .requestMatchers(
                                 "/api/v1/sensor-readings",
                                 "/api/v1/emergency/alerts",
@@ -86,7 +86,6 @@ public class WebSecurityConfiguration {
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
-                // Filtro JWT antes del UsernamePasswordAuthenticationFilter
                 .addFilterBefore(authorizationRequestFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
